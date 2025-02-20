@@ -138,6 +138,13 @@ async function run() {
       }
     });
 
+    // handle delete
+    app.delete("/tasks", async (req, res) => {
+      const { taskId } = req.body;
+      const deletedTask = await taskCollection.deleteOne({ id: taskId });
+      res.send(deletedTask);
+    });
+
     //--------------------------------------------//
   } finally {
     // Ensures that the client will close when you finish/error
