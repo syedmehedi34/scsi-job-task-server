@@ -13,8 +13,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      // "https://career-portal-ph.web.app",
-      // "https://career-portal-ph.web.app",
+      "https://my-todo-task-management.netlify.app/",
     ], // can be multiple
     credentials: true,
   })
@@ -51,14 +50,6 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
-    // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log(
-    //   "Pinged your deployment. You successfully connected to MongoDB!"
-    // );
-
     // Database and collections sections
     const taskCollection = client.db("TaskManagement").collection("tasks");
 
@@ -100,8 +91,10 @@ async function run() {
 
     //----------------- All APIs -----------------//
     app.get("/tasks", async (req, res) => {
-      const result = await taskCollection.find().toArray();
-      res.send(result);
+      const { email } = req.query;
+      // console.log(email);
+      const result = await taskCollection.find({ user: email }).toArray();
+      res.status(200).json(result);
     });
 
     // ? patch drag info
