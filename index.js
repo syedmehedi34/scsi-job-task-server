@@ -105,34 +105,36 @@ async function run() {
     });
 
     // ? patch drag info
-    app.patch("/tasks", async (req, res) => {
+    app.patch("/drag_tasks", async (req, res) => {
       const { taskId, newCategory } = req.body;
 
-      // Ensure taskId and newCategory are provided
-      if (!taskId || !newCategory) {
-        return res
-          .status(400)
-          .json({ message: "Task ID and new category are required." });
-      }
+      const task = await taskCollection.findOneAndUpdate(
+        { id: taskId },
+        { $set: { category: newCategory } },
+        { new: true }
+      );
 
-      try {
-        // Use the $set operator to update the category
-        const task = await taskCollection.findOneAndUpdate(
-          { id: taskId }, // Query by 'id'
-          { $set: { category: newCategory } }, // Use $set to update the category field
-          { new: true } // Return the updated document
+      return res.status(200).json(task);
+    });
+
+    // patch function to update and insert new data
+    app.patch("/tasks", async (req, res) => {
+      const { newTask } = req.body;
+
+      const existingTask = await taskCollection.findOne({ id: newTask.id });
+
+      if (existingTask) {
+        const updatedTask = await taskCollection.findOneAndUpdate(
+          { id: newTask.id },
+          { $set: newTask },
+          { new: true }
         );
-
-        if (!task) {
-          return res.status(404).json({ message: "Task not found." });
-        }
-
-        return res.status(200).json(task); // Return the updated task
-      } catch (error) {
-        console.error(error);
-        return res
-          .status(500)
-          .json({ message: "An error occurred while updating the task." });
+        res.send(updatedTask);
+        //
+        //
+      } else {
+        const insertedTask = await taskCollection.insertOne(newTask);
+        res.send(insertedTask);
       }
     });
 
