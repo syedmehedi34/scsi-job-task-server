@@ -60,10 +60,7 @@ async function run() {
     // );
 
     // Database and collections sections
-    const jobsCollection = client.db("jobPortal").collection("jobs");
-    const jobApplicationCollection = client
-      .db("jobPortal")
-      .collection("job_applications");
+    const taskCollection = client.db("TaskManagement").collection("tasks");
 
     //. Auth related APIs [JWT token]--//
     app.post("/jwt", async (req, res) => {
@@ -102,31 +99,8 @@ async function run() {
     // . ends here              //
 
     //----------------- All APIs -----------------//
-    app.get("/job-application", verifyToken, async (req, res) => {
-      const email = req.query.email;
-      const query = { applicant_email: email };
-
-      // check token
-      // console.log(req.cookies.token);
-      if (req.user.email !== req.query.email) {
-        return res.status(403).send({ message: "forbidden access" });
-      }
-
-      const result = await jobApplicationCollection.find(query).toArray();
-
-      // fokira way to aggregate data
-      for (const application of result) {
-        // console.log(application.job_id)
-        const query1 = { _id: new ObjectId(application.job_id) };
-        const job = await jobsCollection.findOne(query1);
-        if (job) {
-          application.title = job.title;
-          application.location = job.location;
-          application.company = job.company;
-          application.company_logo = job.company_logo;
-        }
-      }
-
+    app.get("/tasks", async (req, res) => {
+      const result = await taskCollection.find().toArray();
       res.send(result);
     });
     //--------------------------------------------//
