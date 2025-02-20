@@ -75,7 +75,7 @@ async function run() {
         expiresIn: "5h",
       });
 
-      console.log("Generated Token:", token);
+      // console.log("Generated Token:", token);
 
       res
         .cookie("token", token, {
@@ -103,6 +103,39 @@ async function run() {
       const result = await taskCollection.find().toArray();
       res.send(result);
     });
+
+    // ? patch drag info
+    app.patch("/tasks", async (req, res) => {
+      const { taskId, newCategory } = req.body;
+
+      // Ensure taskId and newCategory are provided
+      if (!taskId || !newCategory) {
+        return res
+          .status(400)
+          .json({ message: "Task ID and new category are required." });
+      }
+
+      try {
+        // Use the $set operator to update the category
+        const task = await taskCollection.findOneAndUpdate(
+          { id: taskId }, // Query by 'id'
+          { $set: { category: newCategory } }, // Use $set to update the category field
+          { new: true } // Return the updated document
+        );
+
+        if (!task) {
+          return res.status(404).json({ message: "Task not found." });
+        }
+
+        return res.status(200).json(task); // Return the updated task
+      } catch (error) {
+        console.error(error);
+        return res
+          .status(500)
+          .json({ message: "An error occurred while updating the task." });
+      }
+    });
+
     //--------------------------------------------//
   } finally {
     // Ensures that the client will close when you finish/error
