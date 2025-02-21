@@ -13,11 +13,13 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://my-todo-task-management.netlify.app/",
-    ], // can be multiple
-    credentials: true,
+      "https://my-todo-task-management.netlify.app",
+    ],
+    methods: ["GET", "POST", "PATCH", "DELETE"],
+    credentials: true, // This allows cookies to be sent with requests
   })
 );
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -71,7 +73,6 @@ async function run() {
       res
         .cookie("token", token, {
           httpOnly: true,
-          // secure: false, // set to true only if you're using HTTPS
           secure: process.env.NODE_ENV === "production",
           sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
@@ -83,10 +84,12 @@ async function run() {
       res
         .clearCookie("token", {
           httpOnly: true,
-          secure: false, // set true for https
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         })
         .send({ success: true });
     });
+
     // . ends here              //
 
     //----------------- All APIs -----------------//
