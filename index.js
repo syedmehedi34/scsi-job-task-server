@@ -1,45 +1,47 @@
-// npx nodemon index.js
 const express = require("express");
 const cors = require("cors");
-const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
-const app = express();
 require("dotenv").config();
-const port = process.env.PORT || 5001;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-// middleware
+const app = express();
+const port = process.env.PORT || 5001;
+
+// Middleware
+app.use(express.json());
+
+// ✅ Explicitly allow only your frontend
+// CORS Configuration
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      "https://my-todo-task-management.netlify.app",
+      "http://localhost:5173", // Local dev URL
+      "https://my-todo-task-management.netlify.app", // Production URL
     ],
-    methods: ["GET", "POST", "PATCH", "DELETE"],
-    credentials: true, // This allows cookies to be sent with requests
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
-app.use(express.json());
-app.use(cookieParser());
+// ✅ Handle Preflight Requests
+app.options("*", cors());
 
-// verify token hook / middleware
-const verifyToken = (req, res, next) => {
-  const token = req?.cookies?.token;
-  // console.log(token);
-  if (!token) {
-    return res.status(401).send({ message: "unAuthorized access" });
-  }
+// ✅ Ensure CORS headers in every response
+app.use((req, res, next) => {
+  res.header(
+    "Access-Control-Allow-Origin",
+    "http://localhost:5173",
+    "https://my-todo-task-management.netlify.app"
+  );
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PATCH, DELETE, OPTIONS"
+  );
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  next();
+});
 
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(401).send({ message: "Unauthorized access" });
-    }
-    req.user = decoded;
-    next();
-  });
-};
-
+// ✅ MongoDB Connection
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.0uhyg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -52,107 +54,89 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    // Database and collections sections
+    // await client.connect();
+    // console.log("✅ Connected to MongoDB");
+
     const taskCollection = client.db("TaskManagement").collection("tasks");
 
-    //. Auth related APIs [JWT token]--//
-    app.post("/jwt", async (req, res) => {
-      // console.log("JWT request received");
-
-      const user = req.body;
-      if (!user.email) {
-        return res.status(400).send({ message: "Email is required" });
-      }
-
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "5h",
-      });
-
-      // console.log("Generated Token:", token);
-
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-        })
-        .send({ success: true });
-    });
-
-    // clear token
-    app.post("/logout", (req, res) => {
-      res
-        .clearCookie("token", {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-        })
-        .send({ success: true });
-    });
-
-    // . ends here              //
-
-    //----------------- All APIs -----------------//
+    // 🔹 GET Tasks by Email
     app.get("/tasks", async (req, res) => {
       const { email } = req.query;
       // console.log(email);
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
       const result = await taskCollection.find({ user: email }).toArray();
+      // console.log(result);
       res.status(200).json(result);
     });
 
-    // ? patch drag info
+    // 🔹 PATCH: Update Task Category (Drag & Drop)
     app.patch("/drag_tasks", async (req, res) => {
       const { taskId, newCategory } = req.body;
+      // console.log(taskId, newCategory);
 
       const task = await taskCollection.findOneAndUpdate(
         { id: taskId },
         { $set: { category: newCategory } },
-        { new: true }
+        { returnDocument: "after" }
       );
+
+      if (!task) return res.status(404).json({ error: "Task not found" });
 
       return res.status(200).json(task);
     });
 
-    // patch function to update and insert new data
+    // 🔹 PATCH: Update or Insert Task
     app.patch("/tasks", async (req, res) => {
       const { newTask } = req.body;
+      if (!newTask || !newTask.id)
+        return res
+          .status(400)
+          .json({ error: "newTask with an id is required" });
 
-      const existingTask = await taskCollection.findOne({ id: newTask.id });
+      const existingTask = await taskCollection.findOne({
+        id: newTask.id,
+      });
 
       if (existingTask) {
         const updatedTask = await taskCollection.findOneAndUpdate(
           { id: newTask.id },
           { $set: newTask },
-          { new: true }
+          { returnDocument: "after" }
         );
-        res.send(updatedTask);
-        //
-        //
+        return res.status(200).json(updatedTask);
       } else {
         const insertedTask = await taskCollection.insertOne(newTask);
-        res.send(insertedTask);
+        return res.status(201).json(insertedTask);
       }
     });
 
-    // handle delete
+    // 🔹 DELETE: Remove Task
     app.delete("/tasks", async (req, res) => {
       const { taskId } = req.body;
-      const deletedTask = await taskCollection.deleteOne({ id: taskId });
-      res.send(deletedTask);
+      if (!taskId) return res.status(400).json({ error: "taskId is required" });
+
+      const deletedTask = await taskCollection.deleteOne({
+        id: taskId,
+      });
+
+      if (deletedTask.deletedCount === 0)
+        return res.status(404).json({ error: "Task not found" });
+
+      res.status(200).json({ message: "Task deleted successfully" });
     });
 
-    //--------------------------------------------//
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    // 🔹 Root Route
+    app.get("/", (req, res) => {
+      res.send("✅ Project is running...");
+    });
+  } catch (error) {
+    console.error("❌ Error connecting to MongoDB:", error);
   }
 }
 run().catch(console.dir);
 
-app.get("/", (req, res) => {
-  res.send("project is running");
-});
-
+// Start Server
 app.listen(port, () => {
-  console.log(`project is waiting at: ${port}`);
+  console.log(`🚀 Server is running at http://localhost:${port}`);
 });
