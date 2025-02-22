@@ -58,6 +58,7 @@ async function run() {
     // console.log("✅ Connected to MongoDB");
 
     const taskCollection = client.db("TaskManagement").collection("tasks");
+    const usersCollection = client.db("TaskManagement").collection("users");
 
     // 🔹 GET Tasks by Email
     app.get("/tasks", async (req, res) => {
@@ -124,6 +125,26 @@ async function run() {
         return res.status(404).json({ error: "Task not found" });
 
       res.status(200).json({ message: "Task deleted successfully" });
+    });
+
+    // 🔹 POST:
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      user.createdAt = new Date();
+      const result = await usersCollection.insertOne(user);
+
+      res.send({ insertedId: result.insertedId });
+    });
+
+    //
+    app.get("/user", async (req, res) => {
+      const { email } = req.query;
+      // console.log(email);
+      if (!email) return res.status(400).json({ error: "Email is required" });
+
+      const result = await usersCollection.findOne({ email: email });
+      // console.log(result);
+      res.status(200).json(result);
     });
 
     // 🔹 Root Route
