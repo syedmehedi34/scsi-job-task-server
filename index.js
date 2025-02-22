@@ -127,13 +127,29 @@ async function run() {
       res.status(200).json({ message: "Task deleted successfully" });
     });
 
-    // 🔹 POST:
+    // 🔹 POST: post to user collection
     app.post("/users", async (req, res) => {
       const user = req.body;
-      user.createdAt = new Date();
-      const result = await usersCollection.insertOne(user);
+      const email = user.email;
 
-      res.send({ insertedId: result.insertedId });
+      try {
+        // Check if a user with the same email already exists
+        const existingUser = await usersCollection.findOne({ email });
+
+        if (existingUser) {
+          return res.status(400).send({ message: "Email already exists!" });
+        }
+
+        // Add creation timestamp
+        user.createdAt = new Date();
+
+        // Insert new user
+        const result = await usersCollection.insertOne(user);
+        res.send({ insertedId: result.insertedId });
+      } catch (error) {
+        console.error("Error inserting user:", error);
+        res.status(500).send({ message: "Internal Server Error" });
+      }
     });
 
     //
